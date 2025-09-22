@@ -297,16 +297,24 @@
         </div>
         <div class="credits"><br>Made By: Shantanu • Music By: Aryan Kapoor</div>
         <div class="disclaimer">Disclaimer: Demo project. Not an academic reference.</div>
+        <audio id="backgroundMusic" loop preload="auto" style="display: none;">
+            <source src="./background-music.mp3" type="audio/mpeg">
+            <source src="./background-music.ogg" type="audio/ogg">
+        </audio>
+
         <svg id="tree-svg"></svg>
     </div>
+
     <script>
         const SCREEN_WIDTH = window.innerWidth;
         const SCREEN_HEIGHT = window.innerHeight;
         const CENTER_X = SCREEN_WIDTH / 2;
         const CENTER_Y = SCREEN_HEIGHT / 2;
+
         const BOUNDARY_MARGIN = 50;
         const BASE_PAN_LIMIT_X = SCREEN_WIDTH * 0.25;
         const BASE_PAN_LIMIT_Y = SCREEN_HEIGHT * 0.25;
+
         let currentZoom = 1;
         let panX = 0;
         let panY = 0;
@@ -316,49 +324,81 @@
         let zoomResetTimeout;
         let isPanning = false;
         let panStart = { x: 0, y: 0 };
+
         let clickCount = 0;
         let clickTimer = null;
+
         let currentDraggedNode = null;
         let isStretchingLink = false;
+
         let isInitialized = false;
+        let musicStarted = false;
+
         const svg = d3.select("#tree-svg")
             .attr("width", SCREEN_WIDTH)
             .attr("height", SCREEN_HEIGHT);
+
         const zoomContainer = svg.append("g")
             .classed("zoom-container", true);
+
+        // Clean music on star drag - no buttons needed
+        const backgroundMusic = document.getElementById('backgroundMusic');
+        let musicHasStarted = false;
+
+        function startMusicOnDrag() {
+            if (!musicHasStarted && backgroundMusic) {
+                backgroundMusic.volume = 0.2;
+                backgroundMusic.play().then(() => {
+                    musicHasStarted = true;
+                    console.log('🎵 Music started on star drag!');
+                }).catch(e => {
+                    console.log('Music failed:', e);
+                });
+            }
+        }
+
         function calculateTextAreaBoundary() {
             const title = document.querySelector('.title');
             const instructions = document.querySelector('.instructions');
             const credits = document.querySelector('.credits');
             const disclaimer = document.querySelector('.disclaimer');
+
             let boundary = { x: 15, y: 15, width: 420, height: 150 };
+
             try {
                 const titleRect = title.getBoundingClientRect();
                 const instructionsRect = instructions.getBoundingClientRect();
                 const creditsRect = credits.getBoundingClientRect();
                 const disclaimerRect = disclaimer.getBoundingClientRect();
+
                 const minX = Math.min(titleRect.left, instructionsRect.left, creditsRect.left, disclaimerRect.left);
                 const minY = Math.min(titleRect.top, instructionsRect.top, creditsRect.top, disclaimerRect.top);
                 const maxX = Math.max(titleRect.right, instructionsRect.right, creditsRect.right, disclaimerRect.right);
                 const maxY = Math.max(titleRect.bottom, instructionsRect.bottom, creditsRect.bottom, disclaimerRect.bottom);
+
                 boundary = {
                     x: minX - 20,
                     y: minY - 20,
                     width: (maxX - minX) + 40,
                     height: (maxY - minY) + 40
                 };
+
                 boundary.width = Math.max(boundary.width, 300);
                 boundary.height = Math.max(boundary.height, 120);
+
             } catch (e) {
                 console.warn('Failed to calculate text boundary, using defaults');
             }
+
             return boundary;
         }
+
         function createStarPath(radius) {
             const outerRadius = radius;
             const innerRadius = radius * 0.4;
             const points = 5;
             let path = "";
+
             for (let i = 0; i < points * 2; i++) {
                 const angle = (i * Math.PI) / points;
                 const r = i % 2 === 0 ? outerRadius : innerRadius;
@@ -369,6 +409,7 @@
             path += "Z";
             return path;
         }
+
         function getChildPosition(parentX, parentY, childIndex, totalChildren, distance = 80) {
             const angleStep = (2 * Math.PI) / totalChildren;
             const angle = childIndex * angleStep;
@@ -377,16 +418,20 @@
                 y: parentY + Math.sin(angle) * distance
             };
         }
+
         function processTextForNode(text) {
             if (text.includes('-') || text.includes('(') || text.includes('vs')) {
                 return { lines: [text], isMultiline: false };
             }
+
             const words = text.split(' ');
             if (words.length > 1) {
                 return { lines: words, isMultiline: true };
             }
+
             return { lines: [text], isMultiline: false };
         }
+
         const SIZE_RATIOS = {
             1: { radius: 22.8, repulsion: 45.6, mass: 100 },
             2: { radius: 15.2, repulsion: 26.6, mass: 20 },
@@ -394,9 +439,11 @@
             4: { radius: 7.2, repulsion: 12.4, mass: 10 },
             5: { radius: 5.0, repulsion: 8.6, mass: 8 }
         };
+
         const nodes = [];
         const links = [];
         const continuationLines = [];
+
         const philosophyNode = {
             id: "Philosophy", name: "Philosophy",
             x: CENTER_X, y: CENTER_Y,
@@ -404,6 +451,7 @@
             ...SIZE_RATIOS[1], isRoot: true, degree: 1, fx: null, fy: null
         };
         nodes.push(philosophyNode);
+
         const secondDegreeNodes = [
             { id: "Metaphysics", name: "Metaphysics", x: CENTER_X + 220, y: CENTER_Y - 80 },
             { id: "Epistemology", name: "Epistemology", x: CENTER_X - 180, y: CENTER_Y - 120 },
@@ -415,6 +463,7 @@
             { id: "Major Philosophical Movements", name: "Major Philosophical Movements", x: CENTER_X + 60, y: CENTER_Y - 200 },
             { id: "Eastern Philosophy", name: "Eastern Philosophy", x: CENTER_X - 40, y: CENTER_Y - 180 }
         ];
+
         secondDegreeNodes.forEach((nodeData, index) => {
             const node = {
                 ...nodeData,
@@ -424,6 +473,7 @@
             nodes.push(node);
             links.push({ source: philosophyNode, target: node, baseStrength: 0.5, originalDistance: 135 + index * 10 });
         });
+
         function createNode(parentNode, nodeData, degree, distance = 70) {
             const node = {
                 ...nodeData,
@@ -435,6 +485,7 @@
             links.push({ source: parentNode, target: node, baseStrength: 0.4, originalDistance: reducedDistance });
             return node;
         }
+
         function createContinuationLinesForAllParents(parentNode, excludedAngles = [], numLines = 2, length = 30) {
             const colors = {
                 1: '#ffffff',
@@ -442,16 +493,21 @@
                 3: '#999999',
                 4: '#666666'
             };
+
             const parentColor = colors[parentNode.degree] || '#cccccc';
+
             const availableAngles = [];
             for (let angle = 0; angle < 360; angle += 30) {
                 if (!excludedAngles.some(excluded => Math.abs(excluded - angle) < 45)) {
                     availableAngles.push(angle);
                 }
             }
+
             const selectedAngles = availableAngles.slice(0, numLines);
+
             selectedAngles.forEach(angle => {
                 const radian = angle * Math.PI / 180;
+
                 continuationLines.push({
                     parentNode: parentNode,
                     angle: radian,
@@ -460,109 +516,156 @@
                 });
             });
         }
+
         createContinuationLinesForAllParents(philosophyNode, [0, 40, 80, 120, 160, 200, 240, 280, 320], 2, 40);
+
         const metaphysicsNode = nodes.find(n => n.id === "Metaphysics");
         let metaPos1 = getChildPosition(metaphysicsNode.x, metaphysicsNode.y, 0, 2, 126);
         let metaPos2 = getChildPosition(metaphysicsNode.x, metaphysicsNode.y, 1, 2, 126);
+
         const ontologyNode = createNode(metaphysicsNode,
             { id: "Ontology", name: "Ontology", x: metaPos1.x, y: metaPos1.y }, 3, 108);
         const philosophyOfMindNode = createNode(metaphysicsNode,
             { id: "Philosophy of Mind", name: "Philosophy of Mind", x: metaPos2.x, y: metaPos2.y }, 3, 108);
+
         createContinuationLinesForAllParents(metaphysicsNode, [0, 180], 2);
+
         const epistemologyNode = nodes.find(n => n.id === "Epistemology");
         let episPos1 = getChildPosition(epistemologyNode.x, epistemologyNode.y, 0, 2, 126);
         let episPos2 = getChildPosition(epistemologyNode.x, epistemologyNode.y, 1, 2, 126);
+
         const theoryOfKnowledgeNode = createNode(epistemologyNode,
             { id: "Theory of Knowledge", name: "Theory of Knowledge", x: episPos1.x, y: episPos1.y }, 3, 108);
         const philosophyOfScienceNode = createNode(epistemologyNode,
             { id: "Philosophy of Science", name: "Philosophy of Science", x: episPos2.x, y: episPos2.y }, 3, 108);
+
         createContinuationLinesForAllParents(epistemologyNode, [0, 180], 2);
+
         const logicNode = nodes.find(n => n.id === "Logic");
         let logicPos1 = getChildPosition(logicNode.x, logicNode.y, 0, 2, 126);
         let logicPos2 = getChildPosition(logicNode.x, logicNode.y, 1, 2, 126);
+
         const formalLogicNode = createNode(logicNode,
             { id: "Formal Logic", name: "Formal Logic", x: logicPos1.x, y: logicPos1.y }, 3, 108);
         const philosophyOfLanguageNode = createNode(logicNode,
             { id: "Philosophy of Language", name: "Philosophy of Language", x: logicPos2.x, y: logicPos2.y }, 3, 108);
+
         createContinuationLinesForAllParents(logicNode, [0, 180], 2);
+
         const ethicsNode = nodes.find(n => n.id === "Ethics");
         let ethicsPos1 = getChildPosition(ethicsNode.x, ethicsNode.y, 0, 2, 126);
         let ethicsPos2 = getChildPosition(ethicsNode.x, ethicsNode.y, 1, 2, 126);
+
         const normativeEthicsNode = createNode(ethicsNode,
             { id: "Normative Ethics", name: "Normative Ethics", x: ethicsPos1.x, y: ethicsPos1.y }, 3, 108);
         const appliedEthicsNode = createNode(ethicsNode,
             { id: "Applied Ethics", name: "Applied Ethics", x: ethicsPos2.x, y: ethicsPos2.y }, 3, 108);
+
         createContinuationLinesForAllParents(ethicsNode, [0, 180], 2);
+
         const aestheticsNode = nodes.find(n => n.id === "Aesthetics");
         let aestheticsPos = getChildPosition(aestheticsNode.x, aestheticsNode.y, 0, 1, 126);
+
         const philosophyOfArtNode = createNode(aestheticsNode,
             { id: "Philosophy of Art", name: "Philosophy of Art", x: aestheticsPos.x, y: aestheticsPos.y }, 3, 108);
+
         createContinuationLinesForAllParents(aestheticsNode, [0], 2);
+
         const politicalPhilosophyNode = nodes.find(n => n.id === "Political Philosophy");
         let polPos1 = getChildPosition(politicalPhilosophyNode.x, politicalPhilosophyNode.y, 0, 2, 144);
         let polPos2 = getChildPosition(politicalPhilosophyNode.x, politicalPhilosophyNode.y, 1, 2, 144);
+
         const liberalismNode = createNode(politicalPhilosophyNode,
             { id: "Liberalism", name: "Liberalism", x: polPos1.x, y: polPos1.y }, 3, 126);
         const democracyNode = createNode(politicalPhilosophyNode,
             { id: "Democracy", name: "Democracy", x: polPos2.x, y: polPos2.y }, 3, 126);
+
         createContinuationLinesForAllParents(politicalPhilosophyNode, [0, 180], 2);
+
         const philosophyOfReligionNode = nodes.find(n => n.id === "Philosophy of Religion");
         let relPos1 = getChildPosition(philosophyOfReligionNode.x, philosophyOfReligionNode.y, 0, 2, 144);
         let relPos2 = getChildPosition(philosophyOfReligionNode.x, philosophyOfReligionNode.y, 1, 2, 144);
+
         const theismAtheismNode = createNode(philosophyOfReligionNode,
             { id: "Theism vs Atheism", name: "Theism vs Atheism", x: relPos1.x, y: relPos1.y }, 3, 126);
         const agnosticismNode = createNode(philosophyOfReligionNode,
             { id: "Agnosticism", name: "Agnosticism", x: relPos2.x, y: relPos2.y }, 3, 126);
+
         createContinuationLinesForAllParents(philosophyOfReligionNode, [0, 180], 2);
+
         const movementsNode = nodes.find(n => n.id === "Major Philosophical Movements");
         let movPos1 = getChildPosition(movementsNode.x, movementsNode.y, 0, 2, 162);
         let movPos2 = getChildPosition(movementsNode.x, movementsNode.y, 1, 2, 162);
+
         const ancientPhilosophyNode = createNode(movementsNode,
             { id: "Ancient Philosophy", name: "Ancient Philosophy", x: movPos1.x, y: movPos1.y }, 3, 144);
         const modernPhilosophyNode = createNode(movementsNode,
             { id: "Modern Philosophy", name: "Modern Philosophy", x: movPos2.x, y: movPos2.y }, 3, 144);
+
         createContinuationLinesForAllParents(movementsNode, [0, 180], 2);
+
         const easternPhilosophyNode = nodes.find(n => n.id === "Eastern Philosophy");
         let eastPos1 = getChildPosition(easternPhilosophyNode.x, easternPhilosophyNode.y, 0, 2, 144);
         let eastPos2 = getChildPosition(easternPhilosophyNode.x, easternPhilosophyNode.y, 1, 2, 144);
+
         const buddhismNode = createNode(easternPhilosophyNode,
             { id: "Buddhism", name: "Buddhism", x: eastPos1.x, y: eastPos1.y }, 3, 126);
         const hinduismNode = createNode(easternPhilosophyNode,
             { id: "Hinduism", name: "Hinduism", x: eastPos2.x, y: eastPos2.y }, 3, 126);
+
         createContinuationLinesForAllParents(easternPhilosophyNode, [0, 180], 2);
+
         let ontoPos1 = getChildPosition(ontologyNode.x, ontologyNode.y, 0, 2, 90);
         let ontoPos2 = getChildPosition(ontologyNode.x, ontologyNode.y, 1, 2, 90);
+
         createNode(ontologyNode, { id: "Substance", name: "Substance Material vs Immaterial", x: ontoPos1.x, y: ontoPos1.y }, 4, 82);
         createNode(ontologyNode, { id: "Existence and Being", name: "Existence and Being", x: ontoPos2.x, y: ontoPos2.y }, 4, 82);
+
         createContinuationLinesForAllParents(ontologyNode, [0, 180], 2);
+
         let mindPos1 = getChildPosition(philosophyOfMindNode.x, philosophyOfMindNode.y, 0, 2, 90);
         let mindPos2 = getChildPosition(philosophyOfMindNode.x, philosophyOfMindNode.y, 1, 2, 90);
+
         createNode(philosophyOfMindNode, { id: "Mind-Body Problem", name: "Mind-Body Problem", x: mindPos1.x, y: mindPos1.y }, 4, 82);
         createNode(philosophyOfMindNode, { id: "Consciousness", name: "Consciousness", x: mindPos2.x, y: mindPos2.y }, 4, 82);
+
         createContinuationLinesForAllParents(philosophyOfMindNode, [0, 180], 2);
+
         let tokPos1 = getChildPosition(theoryOfKnowledgeNode.x, theoryOfKnowledgeNode.y, 0, 2, 90);
         let tokPos2 = getChildPosition(theoryOfKnowledgeNode.x, theoryOfKnowledgeNode.y, 1, 2, 90);
+
         createNode(theoryOfKnowledgeNode, { id: "Empiricism", name: "Empiricism", x: tokPos1.x, y: tokPos1.y }, 4, 82);
         createNode(theoryOfKnowledgeNode, { id: "Rationalism", name: "Rationalism", x: tokPos2.x, y: tokPos2.y }, 4, 82);
+
         createContinuationLinesForAllParents(theoryOfKnowledgeNode, [0, 180], 2);
+
         let sciencePos1 = getChildPosition(philosophyOfScienceNode.x, philosophyOfScienceNode.y, 0, 2, 90);
         let sciencePos2 = getChildPosition(philosophyOfScienceNode.x, philosophyOfScienceNode.y, 1, 2, 90);
+
         createNode(philosophyOfScienceNode, { id: "Scientific Method", name: "Scientific Method", x: sciencePos1.x, y: sciencePos1.y }, 4, 82);
         createNode(philosophyOfScienceNode, { id: "Scientific Realism", name: "Scientific Realism", x: sciencePos2.x, y: sciencePos2.y }, 4, 82);
+
         createContinuationLinesForAllParents(philosophyOfScienceNode, [0, 180], 2);
+
         let normPos1 = getChildPosition(normativeEthicsNode.x, normativeEthicsNode.y, 0, 2, 90);
         let normPos2 = getChildPosition(normativeEthicsNode.x, normativeEthicsNode.y, 1, 2, 90);
+
         createNode(normativeEthicsNode, { id: "Utilitarianism", name: "Utilitarianism", x: normPos1.x, y: normPos1.y }, 4, 82);
         createNode(normativeEthicsNode, { id: "Virtue Ethics", name: "Virtue Ethics", x: normPos2.x, y: normPos2.y }, 4, 82);
+
         createContinuationLinesForAllParents(normativeEthicsNode, [0, 180], 2);
+
         let appliedPos1 = getChildPosition(appliedEthicsNode.x, appliedEthicsNode.y, 0, 2, 90);
         let appliedPos2 = getChildPosition(appliedEthicsNode.x, appliedEthicsNode.y, 1, 2, 90);
+
         createNode(appliedEthicsNode, { id: "Bioethics", name: "Bioethics", x: appliedPos1.x, y: appliedPos1.y }, 4, 82);
         createNode(appliedEthicsNode, { id: "Environmental Ethics", name: "Environmental Ethics", x: appliedPos2.x, y: appliedPos2.y }, 4, 82);
+
         [philosophyOfArtNode, formalLogicNode, philosophyOfLanguageNode, liberalismNode, democracyNode,
             theismAtheismNode, agnosticismNode, ancientPhilosophyNode, modernPhilosophyNode, buddhismNode, hinduismNode].forEach(node => {
                 createContinuationLinesForAllParents(node, [], 2);
             });
+
         const allLeafNodes = [
             nodes.find(n => n.id === "Substance"), nodes.find(n => n.id === "Existence and Being"),
             nodes.find(n => n.id === "Mind-Body Problem"), nodes.find(n => n.id === "Consciousness"),
@@ -571,13 +674,16 @@
             nodes.find(n => n.id === "Utilitarianism"), nodes.find(n => n.id === "Virtue Ethics"),
             nodes.find(n => n.id === "Bioethics"), nodes.find(n => n.id === "Environmental Ethics")
         ].filter(Boolean);
+
         allLeafNodes.forEach(leafNode => {
             createContinuationLinesForAllParents(leafNode, [], 2);
         });
+
         function customCollisionForce() {
             return d3.forceCollide()
                 .radius(d => {
                     let effectiveRadius = d.radius * 2;
+
                     const textElement = d3.select(`#tree-svg`).select(`g[data-id="${d.id}"] text`).node();
                     if (textElement) {
                         try {
@@ -588,11 +694,13 @@
                             effectiveRadius = d.repulsionRadius * 3;
                         }
                     }
+
                     return effectiveRadius;
                 })
                 .strength(1.0)
                 .iterations(5);
         }
+
         function customRepulsionForce() {
             return d3.forceManyBody()
                 .strength((d) => {
@@ -602,6 +710,7 @@
                 .distanceMin(30)
                 .distanceMax(400);
         }
+
         function customLinkForce() {
             return d3.forceLink(links)
                 .id(d => d.id)
@@ -613,32 +722,39 @@
                 })
                 .strength(link => {
                     if (!currentDraggedNode) return link.baseStrength;
+
                     const source = link.source;
                     const target = link.target;
+
                     if (currentDraggedNode.mass < 100) {
                         if ((currentDraggedNode.id === source.id && target.mass > currentDraggedNode.mass) ||
                             (currentDraggedNode.id === target.id && source.mass > currentDraggedNode.mass)) {
                             return 0.01;
                         }
                     }
+
                     return link.baseStrength;
                 });
         }
+
         const simulation = d3.forceSimulation(nodes)
             .force("link", customLinkForce())
             .force("charge", customRepulsionForce())
             .force("collision", customCollisionForce())
             .alphaDecay(0.01)
             .velocityDecay(0.4);
+
         const linkElements = zoomContainer.selectAll(".link")
             .data(links)
             .join("line")
             .classed("link", true);
+
         const continuationLineElements = zoomContainer.selectAll(".continuation-line")
             .data(continuationLines)
             .join("line")
             .classed("continuation-line", true)
             .attr("stroke", d => d.color);
+
         const nodeElements = zoomContainer.selectAll(".node")
             .data(nodes)
             .join("g")
@@ -653,13 +769,16 @@
                 .on("start", dragstarted)
                 .on("drag", dragged)
                 .on("end", dragended));
+
         nodeElements.append("path")
             .attr("d", d => createStarPath(d.radius));
+
         nodeElements.append("text")
             .each(function (d) {
                 const fontSize = [16, 14, 12, 10, 9][d.degree - 1] || 9;
                 const processedText = processTextForNode(d.name);
                 const textElement = d3.select(this);
+
                 if (processedText.isMultiline && processedText.lines.length > 1) {
                     const lineHeight = fontSize * 1.3;
                     processedText.lines.forEach((line, index) => {
@@ -675,41 +794,53 @@
                         .attr("y", d.radius + 8);
                 }
             });
+
         let returnTimeout;
         let isReturning = false;
         let isResetting = false;
+
         function isPanningAllowed() {
             return currentZoom === ZOOM_IN_LEVEL;
         }
+
         function isInZoomMode() {
             return currentZoom !== 1;
         }
+
         function handleCollisions() {
             if (Math.random() > 0.8) return;
+
             for (let i = 0; i < nodes.length; i++) {
                 for (let j = i + 1; j < nodes.length; j++) {
                     const node1 = nodes[i];
                     const node2 = nodes[j];
+
                     const dx = node2.x - node1.x;
                     const dy = node2.y - node1.y;
                     const distance = Math.sqrt(dx * dx + dy * dy);
+
                     let minDistance = (node1.repulsionRadius + node2.repulsionRadius) * 2;
+
                     try {
                         const textElement1 = d3.select(`#tree-svg`).select(`g[data-id="${node1.id}"] text`).node();
                         const textElement2 = d3.select(`#tree-svg`).select(`g[data-id="${node2.id}"] text`).node();
+
                         if (textElement1 && textElement2) {
                             const bbox1 = textElement1.getBBox();
                             const bbox2 = textElement2.getBBox();
+
                             const textDistance = Math.max(bbox1.width + bbox2.width, bbox1.height + bbox2.height) / 2 + 60;
                             minDistance = Math.max(minDistance, textDistance);
                         }
                     } catch (e) {
                         minDistance *= 1.5;
                     }
+
                     if (distance < minDistance && distance > 0) {
                         const overlap = minDistance - distance;
                         const separationX = (dx / distance) * overlap * 2.0;
                         const separationY = (dy / distance) * overlap * 2.0;
+
                         if (node1.isRoot && !node2.isRoot) {
                             node2.x += separationX;
                             node2.y += separationY;
@@ -726,6 +857,7 @@
                 }
             }
         }
+
         function updateContinuationLines() {
             continuationLineElements
                 .attr("x1", d => {
@@ -747,23 +879,29 @@
                     return endY;
                 });
         }
+
         simulation.on("tick", () => {
             handleCollisions();
+
             nodes.forEach(node => {
                 if (node.fx === null) {
                     node.x = Math.max(BOUNDARY_MARGIN + node.radius, Math.min(SCREEN_WIDTH - BOUNDARY_MARGIN - node.radius, node.x));
                     node.y = Math.max(BOUNDARY_MARGIN + node.radius, Math.min(SCREEN_HEIGHT - BOUNDARY_MARGIN - node.radius, node.y));
                 }
             });
+
             updatePositions();
             updateContinuationLines();
         });
+
         setTimeout(() => {
             isInitialized = true;
         }, 2000);
+
         function resetVisualState() {
             if (isResetting) return;
             isResetting = true;
+
             if (zoomResetTimeout) {
                 clearTimeout(zoomResetTimeout);
                 zoomResetTimeout = null;
@@ -772,26 +910,34 @@
                 clearTimeout(returnTimeout);
                 returnTimeout = null;
             }
+
             isReturning = false;
             isPanning = false;
             currentDraggedNode = null;
             isStretchingLink = false;
+
             simulation.stop();
+
             const startPositions = nodes.map(node => ({ x: node.x, y: node.y }));
             const startZoom = currentZoom;
             const startPanX = panX;
             const startPanY = panY;
+
             linkElements.classed("highlighted", false).classed("stretched", false);
             nodeElements.style("opacity", 1);
+
             const startTime = Date.now();
             const duration = 500;
+
             function resetAnimate() {
                 const elapsed = Date.now() - startTime;
                 const progress = Math.min(elapsed / duration, 1);
                 const easedProgress = 1 - Math.pow(1 - progress, 3);
+
                 currentZoom = startZoom + (ZOOM_NORMAL - startZoom) * easedProgress;
                 panX = startPanX + (0 - startPanX) * easedProgress;
                 panY = startPanY + (0 - startPanY) * easedProgress;
+
                 nodes.forEach((node, i) => {
                     const startPos = startPositions[i];
                     node.x = startPos.x + (node.originalX - startPos.x) * easedProgress;
@@ -799,9 +945,11 @@
                     node.fx = null;
                     node.fy = null;
                 });
+
                 updatePositions();
                 updateContinuationLines();
                 updateTransform(true);
+
                 if (progress < 1) {
                     requestAnimationFrame(resetAnimate);
                 } else {
@@ -814,18 +962,22 @@
                         node.fx = null;
                         node.fy = null;
                     });
+
                     updatePositions();
                     updateContinuationLines();
                     updateTransform(true);
                     updateNodeDragState();
                     isResetting = false;
+
                     simulation.alpha(0.3).restart();
                 }
             }
             resetAnimate();
         }
+
         function handleTripleClick(event) {
             clickCount++;
+
             if (clickCount === 1) {
                 clickTimer = setTimeout(() => {
                     clickCount = 0;
@@ -837,9 +989,11 @@
                 event.preventDefault();
             }
         }
+
         function getPanLimits() {
             const adjustedPanLimitX = BASE_PAN_LIMIT_X / currentZoom;
             const adjustedPanLimitY = BASE_PAN_LIMIT_Y / currentZoom;
+
             return {
                 maxPanX: adjustedPanLimitX,
                 maxPanY: adjustedPanLimitY,
@@ -847,6 +1001,7 @@
                 minPanY: -adjustedPanLimitY
             };
         }
+
         function applyPanLimits() {
             if (isPanningAllowed()) {
                 const limits = getPanLimits();
@@ -857,28 +1012,34 @@
                 panY = 0;
             }
         }
+
         function getScreenCoordinates(nodeX, nodeY) {
             const relativeX = (nodeX - philosophyNode.x) * currentZoom + philosophyNode.x + panX;
             const relativeY = (nodeY - philosophyNode.y) * currentZoom + philosophyNode.y + panY;
             return { x: relativeX, y: relativeY };
         }
+
         function handleTextTransparency() {
             if (!isInitialized) return;
+
             const title = document.querySelector('.title');
             const instructions = document.querySelector('.instructions');
             const credits = document.querySelector('.credits');
             const disclaimer = document.querySelector('.disclaimer');
+
             try {
                 const titleRect = title.getBoundingClientRect();
                 const instructionsRect = instructions.getBoundingClientRect();
                 const creditsRect = credits.getBoundingClientRect();
                 const disclaimerRect = disclaimer.getBoundingClientRect();
+
                 const mainTextArea = {
                     x: Math.min(titleRect.left, instructionsRect.left, creditsRect.left) - 10,
                     y: Math.min(titleRect.top, instructionsRect.top, creditsRect.top) - 10,
                     width: Math.max(titleRect.right, instructionsRect.right, creditsRect.right) - Math.min(titleRect.left, instructionsRect.left, creditsRect.left) + 20,
                     height: Math.max(titleRect.bottom, instructionsRect.bottom, creditsRect.bottom) - Math.min(titleRect.top, instructionsRect.top, creditsRect.top) + 20
                 };
+
                 const DISCLAIMER_BOUNDARY_SIZE = 50;
                 const disclaimerBoundary = {
                     x: disclaimerRect.left - DISCLAIMER_BOUNDARY_SIZE,
@@ -886,24 +1047,31 @@
                     width: disclaimerRect.width + (DISCLAIMER_BOUNDARY_SIZE * 2),
                     height: disclaimerRect.height + (DISCLAIMER_BOUNDARY_SIZE * 2)
                 };
+
                 const mainTextOverlapping = nodes.some(node => {
                     const screenCoords = getScreenCoordinates(node.x, node.y);
                     const starRadius = node.radius * currentZoom;
+
                     const closestX = Math.max(mainTextArea.x, Math.min(screenCoords.x, mainTextArea.x + mainTextArea.width));
                     const closestY = Math.max(mainTextArea.y, Math.min(screenCoords.y, mainTextArea.y + mainTextArea.height));
+
                     const distanceX = screenCoords.x - closestX;
                     const distanceY = screenCoords.y - closestY;
                     const distanceSquared = distanceX * distanceX + distanceY * distanceY;
+
                     return distanceSquared <= starRadius * starRadius;
                 });
+
                 const disclaimerBoundaryEntered = nodes.some(node => {
                     const screenCoords = getScreenCoordinates(node.x, node.y);
                     const starRadius = node.radius * currentZoom;
+
                     return (screenCoords.x >= disclaimerBoundary.x &&
                         screenCoords.x <= disclaimerBoundary.x + disclaimerBoundary.width &&
                         screenCoords.y >= disclaimerBoundary.y &&
                         screenCoords.y <= disclaimerBoundary.y + disclaimerBoundary.height);
                 });
+
                 if (mainTextOverlapping) {
                     title.classList.add('text-faded');
                     instructions.classList.add('text-faded');
@@ -913,15 +1081,18 @@
                     instructions.classList.remove('text-faded');
                     credits.classList.remove('text-faded');
                 }
+
                 if (disclaimerBoundaryEntered) {
                     disclaimer.classList.add('text-faded');
                 } else {
                     disclaimer.classList.remove('text-faded');
                 }
+
             } catch (e) {
                 console.warn('Error in text transparency calculation:', e);
             }
         }
+
         function updateLinks() {
             linkElements
                 .attr("x1", d => d.source.x)
@@ -929,10 +1100,13 @@
                 .attr("x2", d => d.target.x)
                 .attr("y2", d => d.target.y);
         }
+
         function updateTransform(instant = false) {
             applyPanLimits();
+
             const starX = philosophyNode.x;
             const starY = philosophyNode.y;
+
             if (instant) {
                 zoomContainer
                     .attr("transform", `translate(${starX + panX}, ${starY + panY}) scale(${currentZoom}) translate(${-starX}, ${-starY})`);
@@ -942,13 +1116,16 @@
                     .duration(300)
                     .attr("transform", `translate(${starX + panX}, ${starY + panY}) scale(${currentZoom}) translate(${-starX}, ${-starY})`);
             }
+
             handleTextTransparency();
         }
+
         function updatePositions() {
             nodeElements.attr("transform", d => `translate(${d.x}, ${d.y})`);
             updateLinks();
             handleTextTransparency();
         }
+
         function updateNodeDragState() {
             if (isInZoomMode()) {
                 nodeElements.classed("disabled-drag", true);
@@ -958,10 +1135,12 @@
                 svg.classed("pan-mode", false);
             }
         }
+
         function scheduleZoomReset() {
             if (zoomResetTimeout) {
                 clearTimeout(zoomResetTimeout);
             }
+
             if (currentZoom !== 1 || panX !== 0 || panY !== 0) {
                 zoomResetTimeout = setTimeout(() => {
                     currentZoom = 1;
@@ -972,8 +1151,10 @@
                 }, 7500);
             }
         }
+
         function handleZoom(event) {
             event.preventDefault();
+
             if (event.deltaY < 0) {
                 if (currentZoom === ZOOM_NORMAL) {
                     currentZoom = ZOOM_IN_LEVEL;
@@ -987,50 +1168,64 @@
                     currentZoom = ZOOM_NORMAL;
                 }
             }
+
             applyPanLimits();
             updateTransform();
             updateNodeDragState();
             scheduleZoomReset();
         }
+
         function handlePanStart(event) {
             if (isPanningAllowed()) {
                 isPanning = true;
                 panStart = { x: event.clientX - panX, y: event.clientY - panY };
             }
         }
+
         function handlePanMove(event) {
             if (isPanning && isPanningAllowed()) {
                 const newPanX = event.clientX - panStart.x;
                 const newPanY = event.clientY - panStart.y;
+
                 const limits = getPanLimits();
                 panX = Math.max(limits.minPanX, Math.min(limits.maxPanX, newPanX));
                 panY = Math.max(limits.minPanY, Math.min(limits.maxPanY, newPanY));
+
                 updateTransform(true);
             }
         }
+
         function handlePanEnd() {
             isPanning = false;
         }
+
         function smoothReturnToCenter() {
             if (isReturning || isResetting) return;
             isReturning = true;
+
             const startX = philosophyNode.x;
             const startY = philosophyNode.y;
             const endX = philosophyNode.originalX;
             const endY = philosophyNode.originalY;
+
             const startTime = Date.now();
             const duration = 800;
+
             function centerAnimate() {
                 const elapsed = Date.now() - startTime;
                 const progress = Math.min(elapsed / duration, 1);
                 const easedProgress = 1 - Math.pow(1 - progress, 3);
+
                 philosophyNode.x = startX + (endX - startX) * easedProgress;
                 philosophyNode.y = startY + (endY - startY) * easedProgress;
+
                 philosophyNode.fx = philosophyNode.x;
                 philosophyNode.fy = philosophyNode.y;
+
                 if (!simulation.alpha() || simulation.alpha() < 0.1) {
                     simulation.alpha(0.1).restart();
                 }
+
                 if (progress < 1) {
                     requestAnimationFrame(centerAnimate);
                 } else {
@@ -1039,25 +1234,34 @@
                     philosophyNode.fx = null;
                     philosophyNode.fy = null;
                     isReturning = false;
+
                     simulation.alpha(0.05).restart();
                 }
             }
             centerAnimate();
         }
+
         function dragstarted(event, d) {
             if (isInZoomMode() || isResetting) return;
+
+            startMusicOnDrag(); // Start music when dragging any star
+
             if (!event.active) simulation.alphaTarget(0.3).restart();
+
             currentDraggedNode = d;
             d.fx = d.x;
             d.fy = d.y;
+
             if (d.mass < 100) {
                 isStretchingLink = true;
+
                 nodes.forEach(node => {
                     if (node.isRoot) {
                         node.fx = node.x;
                         node.fy = node.y;
                     }
                 });
+
                 linkElements.classed("stretched", link =>
                     link.source.id === d.id || link.target.id === d.id
                 );
@@ -1065,17 +1269,22 @@
                 isStretchingLink = false;
                 linkElements.classed("stretched", false);
             }
+
             simulation.force("link", customLinkForce());
+
             if (returnTimeout) {
                 clearTimeout(returnTimeout);
                 returnTimeout = null;
             }
             isReturning = false;
         }
+
         function dragged(event, d) {
             if (isInZoomMode() || isResetting) return;
+
             d.fx = event.x;
             d.fy = event.y;
+
             if (isStretchingLink && d.mass < 100) {
                 nodes.forEach(node => {
                     if (node.isRoot) {
@@ -1084,24 +1293,33 @@
                     }
                 });
             }
+
             simulation.force("link", customLinkForce());
         }
+
         function dragended(event, d) {
             if (isInZoomMode() || isResetting) return;
+
             if (!event.active) simulation.alphaTarget(0);
+
             currentDraggedNode = null;
             isStretchingLink = false;
+
             linkElements.classed("stretched", false);
+
             nodes.forEach(node => {
                 if (node !== d) {
                     node.fx = null;
                     node.fy = null;
                 }
             });
+
             simulation.force("link", d3.forceLink(links).id(d => d.id).distance(d => d.originalDistance).strength(0.5));
+
             if (d.isRoot) {
                 d.fx = null;
                 d.fy = null;
+
                 returnTimeout = setTimeout(() => {
                     smoothReturnToCenter();
                 }, 1500);
@@ -1110,11 +1328,13 @@
                 d.fy = null;
             }
         }
+
         svg.node().addEventListener('wheel', handleZoom);
         svg.node().addEventListener('mousedown', handlePanStart);
         svg.node().addEventListener('click', handleTripleClick);
         document.addEventListener('mousemove', handlePanMove);
         document.addEventListener('mouseup', handlePanEnd);
+
         console.log(`Philosophy Constellation: ${nodes.length} nodes, ${links.length} links, ${continuationLines.length} continuation lines`);
     </script>
 </body>
