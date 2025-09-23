@@ -206,17 +206,9 @@
         }
 
         @keyframes pulse {
-            0% {
-                opacity: 0.6;
-            }
-
-            50% {
-                opacity: 1.0;
-            }
-
-            100% {
-                opacity: 0.6;
-            }
+            0% { opacity: 0.6; }
+            50% { opacity: 1.0; }
+            100% { opacity: 0.6; }
         }
 
         .title {
@@ -269,6 +261,18 @@
             transition: opacity 0.3s ease;
         }
 
+        .top-right {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            font-family: 'VT323', monospace;
+            font-size: 13.3px;
+            color: #ffffff;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+            z-index: 10;
+            transition: opacity 0.3s ease;
+        }
+
         .text-faded {
             opacity: 0.2;
         }
@@ -284,6 +288,9 @@
         svg.pan-mode {
             cursor: move;
         }
+
+        .pixel{position:fixed;width:3px;height:3px;background:#fff;opacity:0.6;z-index:0;border-radius:50%;animation:twinkle 3s infinite alternate;pointer-events:none}
+        @keyframes twinkle{from{opacity:.2;transform:scale(1)}to{opacity:1;transform:scale(1.5)}}
     </style>
 </head>
 
@@ -296,7 +303,8 @@
             Triple click to reset view<br>
             Works best on larger screens
         </div>
-        <div class="credits"><br><br>Made By: Shantanu • Music By: Aryan Kapoor</div>
+        <div class="credits"><br><br><br>Made By: Shantanu • Music By: Aryan Kapoor</div>
+        <!-- <div id="topRight" class="top-right">Best experienced on desktop • Audio on drag</div> -->
         <div class="disclaimer">Disclaimer: Demo project. Not an academic reference.</div>
         <audio id="backgroundMusic" loop preload="auto" style="display: none;">
             <source src="./background-music.mp3" type="audio/mpeg">
@@ -342,7 +350,6 @@
         const zoomContainer = svg.append("g")
             .classed("zoom-container", true);
 
-        // Clean music on star drag - no buttons needed
         const backgroundMusic = document.getElementById('backgroundMusic');
         let musicHasStarted = false;
 
@@ -1035,10 +1042,10 @@
                 const disclaimerRect = disclaimer.getBoundingClientRect();
 
                 const mainTextArea = {
-                    x: Math.min(titleRect.left, instructionsRect.left, creditsRect.left) - 10,
-                    y: Math.min(titleRect.top, instructionsRect.top, creditsRect.top) - 10,
-                    width: Math.max(titleRect.right, instructionsRect.right, creditsRect.right) - Math.min(titleRect.left, instructionsRect.left, creditsRect.left) + 20,
-                    height: Math.max(titleRect.bottom, instructionsRect.bottom, creditsRect.bottom) - Math.min(titleRect.top, instructionsRect.top, creditsRect.top) + 20
+                    x: Math.min(instructionsRect.left, creditsRect.left) - 2,
+                    y: Math.min(instructionsRect.top, creditsRect.top) - 2,
+                    width: Math.max(instructionsRect.right, creditsRect.right) - Math.min(instructionsRect.left, creditsRect.left) + 4,
+                    height: Math.max(instructionsRect.bottom, creditsRect.bottom) - Math.min(instructionsRect.top, creditsRect.top) + 4,
                 };
 
                 const DISCLAIMER_BOUNDARY_SIZE = 50;
@@ -1074,11 +1081,9 @@
                 });
 
                 if (mainTextOverlapping) {
-                    title.classList.add('text-faded');
                     instructions.classList.add('text-faded');
                     credits.classList.add('text-faded');
                 } else {
-                    title.classList.remove('text-faded');
                     instructions.classList.remove('text-faded');
                     credits.classList.remove('text-faded');
                 }
@@ -1088,6 +1093,52 @@
                 } else {
                     disclaimer.classList.remove('text-faded');
                 }
+
+                const topRight = document.querySelector('#topRight');
+                if (topRight) {
+                    const trRect = topRight.getBoundingClientRect();
+                    const TOP_RIGHT_BOUNDARY_SIZE = 50;
+                    const topRightBoundary = {
+                        x: trRect.left - TOP_RIGHT_BOUNDARY_SIZE,
+                        y: trRect.top - TOP_RIGHT_BOUNDARY_SIZE,
+                        width: trRect.width + (TOP_RIGHT_BOUNDARY_SIZE * 2),
+                        height: trRect.height + (TOP_RIGHT_BOUNDARY_SIZE * 2)
+                    };
+
+                    const topRightBoundaryEntered = nodes.some(node => {
+                        const sc = getScreenCoordinates(node.x, node.y);
+                        return (
+                            sc.x >= topRightBoundary.x &&
+                            sc.x <= topRightBoundary.x + topRightBoundary.width &&
+                            sc.y >= topRightBoundary.y &&
+                            sc.y <= topRightBoundary.y + topRightBoundary.height
+                        );
+                    });
+
+                    if (topRightBoundaryEntered) topRight.classList.add('text-faded');
+                    else topRight.classList.remove('text-faded');
+                }
+
+                const TITLE_BOUNDARY_SIZE = 50;
+                const titleBoundary = {
+                    x: titleRect.left - TITLE_BOUNDARY_SIZE,
+                    y: titleRect.top - TITLE_BOUNDARY_SIZE,
+                    width: titleRect.width + (TITLE_BOUNDARY_SIZE * 2),
+                    height: titleRect.height + (TITLE_BOUNDARY_SIZE * 2)
+                };
+
+                const titleBoundaryEntered = nodes.some(node => {
+                    const sc = getScreenCoordinates(node.x, node.y);
+                    return (
+                        sc.x >= titleBoundary.x &&
+                        sc.x <= titleBoundary.x + titleBoundary.width &&
+                        sc.y >= titleBoundary.y &&
+                        sc.y <= titleBoundary.y + titleBoundary.height
+                    );
+                });
+
+                if (titleBoundaryEntered) title.classList.add('text-faded');
+                else title.classList.remove('text-faded');
 
             } catch (e) {
                 console.warn('Error in text transparency calculation:', e);
@@ -1245,7 +1296,7 @@
         function dragstarted(event, d) {
             if (isInZoomMode() || isResetting) return;
 
-            startMusicOnDrag(); // Start music when dragging any star
+            startMusicOnDrag();
 
             if (!event.active) simulation.alphaTarget(0.3).restart();
 
@@ -1337,6 +1388,21 @@
         document.addEventListener('mouseup', handlePanEnd);
 
         console.log(`Philosophy Constellation: ${nodes.length} nodes, ${links.length} links, ${continuationLines.length} continuation lines`);
+    </script>
+
+    <script>
+    (function spawnPixels(){
+        var COUNT=150;
+        for(var i=0;i<COUNT;i++){
+            var p=document.createElement('div');
+            p.className='pixel';
+            p.style.left=(Math.random()*100)+'vw';
+            p.style.top=(Math.random()*100)+'vh';
+            p.style.animationDuration=(2+Math.random()*4)+'s';
+            p.style.animationDelay=(Math.random()*5)+'s';
+            document.body.appendChild(p);
+        }
+    })();
     </script>
 </body>
 
